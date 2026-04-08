@@ -10,6 +10,7 @@ root/
 │   ├── common.cpp           
 │   └── common.hpp 
 ├── Assignment1/
+│   ├── CMakeLists.txt
 │   ├── OptzA/             # Sorgenti ottimizzazione A
 │   │   ├── Pass.cpp
 │   │   ├── CMakeLists.txt
