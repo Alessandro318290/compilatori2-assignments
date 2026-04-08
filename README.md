@@ -6,9 +6,9 @@ Repo per gli assignments di compilatori2
 ```text
 root/
 ├── CMakeLists.txt             
-├── common/                # Funzioni comuni che i tuoi test chiamano
-│   ├── common.c           
-│   └── common.h 
+├── common/                # Funzioni comuni che i test chiamano
+│   ├── common.cpp           
+│   └── common.hpp 
 ├── Assignment1/
 │   ├── OptzA/             # Sorgenti ottimizzazione A
 │   │   ├── Pass.cpp
@@ -24,5 +24,5 @@ root/
 │   └── IR/                # .ll o .bc                                     
 └── build/                 # Unica cartella di build
     └── lib/
-        └── LLVMAssignment1.so # Un'unica libreria contenente TUTTI i pass
+        └── LLVMAssignments.so # Un'unica libreria contenente TUTTI i pass
 ```
