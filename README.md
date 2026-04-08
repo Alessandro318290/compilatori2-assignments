@@ -23,6 +23,5 @@ root/
 │   ├── source/            # .c file
 │   └── IR/                # .ll o .bc                                     
 └── build/                 # Unica cartella di build
-    └── lib/
-        └── LLVMAssignments.so # Un'unica libreria contenente TUTTI i pass
+    └── LLVMAssignments.so # Un'unica libreria contenente TUTTI i pass
 ```
