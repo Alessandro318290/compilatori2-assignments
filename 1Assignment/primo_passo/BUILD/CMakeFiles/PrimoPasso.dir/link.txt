@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC  -fno-rtti  -Wl,--gc-sections -shared  -o lib/PrimoPasso.so CMakeFiles/PrimoPasso.dir/primo_passo.cpp.o  -Wl,-rpath,"\$ORIGIN/../lib:/usr/lib/llvm-19/lib:" /usr/lib/llvm-19/lib/libLLVM.so.1 

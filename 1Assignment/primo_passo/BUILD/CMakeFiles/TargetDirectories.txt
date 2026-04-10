@@ -1,0 +1,15 @@
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/intrinsics_gen.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/omp_gen.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/acc_gen.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/ARMTargetParserTableGen.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/AArch64TargetParserTableGen.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/RISCVTargetParserTableGen.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/PrimoPasso.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/install-PrimoPasso.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/install-PrimoPasso-stripped.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/edit_cache.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/rebuild_cache.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/list_install_components.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/install.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/install/local.dir
+/home/alees/ASSIGNMENTS/compilatori2-assignments/1Assignment/primo_passo/BUILD/CMakeFiles/install/strip.dir
