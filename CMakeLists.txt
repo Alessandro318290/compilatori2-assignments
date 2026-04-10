@@ -35,9 +35,8 @@ include(AddLLVM)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # CMake deve scendere nelle sottocartelle e cercare altri CMakeLists.txt.
-# add_subdirectory(1Assignment)
+add_subdirectory(1Assignment)
 
 # In caso di file dentro 'common' che devono essere compilati, 
 # aggiungere anche questa (opzionale se sono solo header .h):
 # add_subdirectory(common)
-add_subdirectory(primo_passo/SRC)

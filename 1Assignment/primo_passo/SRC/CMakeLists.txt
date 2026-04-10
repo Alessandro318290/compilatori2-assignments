@@ -40,3 +40,5 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # In caso di file dentro 'common' che devono essere compilati, 
 # aggiungere anche questa (opzionale se sono solo header .h):
 # add_subdirectory(common)
+
+add_llvm_library(PrimoPasso MODULE primo_passo.cpp PLUGIN_TOOL opt)
