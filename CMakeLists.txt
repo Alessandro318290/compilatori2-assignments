@@ -30,9 +30,9 @@ add_definitions(${LLVM_DEFINITIONS})
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
 include(AddLLVM)
 
-# Voglio che tutti i file .so finiscano in build/lib per comodità,
+# Voglio che tutti i file .so finiscano in build per comodità,
 # a prescindere da dove si trova il codice sorgente.
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # CMake deve scendere nelle sottocartelle e cercare altri CMakeLists.txt.
 # add_subdirectory(1Assignment)
