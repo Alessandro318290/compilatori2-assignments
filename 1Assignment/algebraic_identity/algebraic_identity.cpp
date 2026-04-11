@@ -6,7 +6,7 @@
 using namespace llvm;
 
 //-----------------------------------------------------------------------------
-// PrimoPasso implementation
+// AlgebraicIdentity implementation
 //-----------------------------------------------------------------------------
 // No need to expose the internals of the pass to the outside world - keep
 // everything in an anonymous namespace.
@@ -14,7 +14,7 @@ namespace {
 
 
     // New PM implementation
-    struct PrimoPasso: PassInfoMixin<PrimoPasso> {
+    struct AlgebraicIdentity: PassInfoMixin<AlgebraicIdentity> {
     // Main entry point, takes IR unit to run the pass on (&F) and the
     // corresponding pass manager (to be queried if need be)
         PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
@@ -82,14 +82,14 @@ namespace {
 //-----------------------------------------------------------------------------
 // New PM Registration
 //-----------------------------------------------------------------------------
-llvm::PassPluginLibraryInfo getPrimoPassoPluginInfo() {
-return {LLVM_PLUGIN_API_VERSION, "PrimoPasso", LLVM_VERSION_STRING,
+llvm::PassPluginLibraryInfo getAlgebraicIdentityPluginInfo() {
+return {LLVM_PLUGIN_API_VERSION, "AlgebraicIdentity", LLVM_VERSION_STRING,
         [](PassBuilder &PB) {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, FunctionPassManager &FPM,
                 ArrayRef<PassBuilder::PipelineElement>) {
-                if (Name == "primo-passo") {
-                    FPM.addPass(PrimoPasso());
+                if (Name == "algebraic-identity") {
+                    FPM.addPass(AlgebraicIdentity());
                     return true;
                 }
                 return false;
@@ -98,9 +98,9 @@ return {LLVM_PLUGIN_API_VERSION, "PrimoPasso", LLVM_VERSION_STRING,
 }
 
 // This is the core interface for pass plugins. It guarantees that 'opt' will
-// be able to recognize PrimoPasso when added to the pass pipeline on the
-// command line, i.e. via '-passes=primo-passo'
+// be able to recognize AlgebraicIdentity when added to the pass pipeline on the
+// command line, i.e. via '-passes=algebraic-identity'
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
-  return getPrimoPassoPluginInfo();
+  return getAlgebraicIdentityPluginInfo();
 }
