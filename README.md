@@ -4,25 +4,22 @@ Repo per gli assignments di compilatori2
 ## Struttura delle directory
 
 ```text
-root/
-├── CMakeLists.txt             
+root/        
 ├── common/                # Funzioni comuni che i test chiamano
 │   ├── common.cpp           
 │   └── common.hpp 
 ├── 1Assignment/
-│   ├── CMakeLists.txt
-│   ├── OptzA/             # Sorgenti ottimizzazione A
-│   │   ├── Pass.cpp
-│   │   ├── CMakeLists.txt
-│   │   └── tests/         # TEST SPECIFICI per questo passo
+│   ├── OptzA/             # Ottimizzazione A
+│   │   ├── build/
+│   │   ├── src/
+│   │   │   ├── Pass.cpp
+│   │   │   └── CMakeLists.txt
+│   │   └── test/         # TEST SPECIFICI per questo passo
 │   │       ├── optaA.c  
-│   │       └── optaB.ll
-│   └── OptzB/             # Sorgenti ottimizzazione B
-│       ├── Pass.cpp
-│       └── CMakeLists.txt
-├── tests/                
-│   ├── source/            # .c file
-│   └── IR/                # .ll o .bc                                     
-└── build/                 # Unica cartella di build
-    └── LLVMAssignments.so # Un'unica libreria contenente TUTTI i pass
+│   │       └── optaA.ll
+│   └── OptzB/             # Ottimizzazione B
+│       ├── ...
+├── test/                
+│   ├── test.c  
+│   └── test.ll
 ```
