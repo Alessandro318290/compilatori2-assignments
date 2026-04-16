@@ -43,26 +43,6 @@ namespace {
                         errs()<<"\nE' un istruzione che cerchiamo\n";
                         //cerchiamo gli users
                         for (auto *U : add1->users()){
-                            U->print(errs());
-                            errs() << "\n";
-                            if (auto *SI = dyn_cast<StoreInst>(U)){
-                                Value *ptr = SI->getPointerOperand();
-                                //Cerchiamo il Load allo stesso puntatore
-                                for(auto &I : *SI->getParent()->getParent()){
-                                    if(auto *LI = dyn_cast<LoadInst>(&I)){
-                                        if(LI->getPointerOperand() != ptr)
-                                            continue;
-                                        
-                                        for(auto *U2 : LI->users()){
-                                            if(auto *op = dyn_cast<BinaryOperator>(U2)){
-                                                errs()<<"Store trovata\n";
-                                                op->print(errs());
-                                                errs()<<"\n";
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                             //controlla se l'user è un operazione binaria
                             auto *op = dyn_cast<BinaryOperator>(U);
                             if(!op)
@@ -90,26 +70,26 @@ namespace {
                             if(op->getOperand(0) != add1)
                                 continue;
                             
-                            Value *other = op->getOperand(1);
-
                             //estrae le costanti (se sono presenti)
                             ConstantInt *C1 = dyn_cast<ConstantInt>(add1->getOperand(1));
-                            ConstantInt *C2 = dyn_cast<ConstantInt>(other);
+                            ConstantInt *C2 = dyn_cast<ConstantInt>(op->getOperand(1));
 
                             //controlla che siano costanti
-                            if(!C1 || !C2)
+                            if(!C1)
+                                continue;
+                            if(!C2)
                                 continue;
                             //controlla che abbiano lo stesso valore
                             if(C1->getValue() != C2->getValue())
                                 continue;
                             errs()<<"Inversa trovata\n";
-                            //a questo punto abbiamo trovato il match
+                            //a questo punto abbiamo trovato una possibilità di ottimizzare il codice
+                            //riprendiamo la nostra prima operazione
                             Value *b = add1->getOperand(0);
-                            errs()<<"MATCH\n";
-                            //sostituisce tutto con b
+                            //sostituiamo gli usi di op con add1
                             op->replaceAllUsesWith(b);
                             op->eraseFromParent();
-                            
+                            errs()<<"OTTIMISAZZIONE AVVENUTA\n";
                             break;
                         }
                     }
