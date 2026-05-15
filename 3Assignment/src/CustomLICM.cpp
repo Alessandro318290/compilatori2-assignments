@@ -57,7 +57,7 @@ namespace {
     }
   }
 // New PM implementation
-struct LoopPass : PassInfoMixin<LoopPass> {
+struct CustomLICM : PassInfoMixin<CustomLICM> {
   // Main entry point, takes IR unit to run the pass on (&F) and the
   // corresponding pass manager (to be queried if need be)
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
@@ -73,14 +73,14 @@ struct LoopPass : PassInfoMixin<LoopPass> {
 //-----------------------------------------------------------------------------
 // New PM Registration
 //-----------------------------------------------------------------------------
-llvm::PassPluginLibraryInfo getLoopPassPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "LoopPass", LLVM_VERSION_STRING,
+llvm::PassPluginLibraryInfo getCustomLICMPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "CustomLICM", LLVM_VERSION_STRING,
           [](PassBuilder &PB) {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, FunctionPassManager &FPM,
                    ArrayRef<PassBuilder::PipelineElement>) {
-                  if (Name == "loop-pass") {
-                    FPM.addPass(LoopPass());
+                  if (Name == "custom-licm") {
+                    FPM.addPass(CustomLICM());
                     return true;
                   }
                   return false;
@@ -93,5 +93,5 @@ llvm::PassPluginLibraryInfo getLoopPassPluginInfo() {
 // command line, i.e. via '-passes=test-pass'
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
-  return getLoopPassPluginInfo();
+  return getCustomLICMPluginInfo();
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(loop-pass)
+project(custom-licm)
 
 #===============================================================================
 # 1. LOAD LLVM CONFIGURATION
@@ -33,8 +33,8 @@ endif()
 #===============================================================================
 # 3. ADD THE TARGET
 #===============================================================================
-add_library(LoopPass SHARED LoopPass.cpp)
+add_library(CustomLICM SHARED CustomLICM.cpp)
 
 # Allow undefined symbols in shared objects on Darwin (this is the default
 # behaviour on Linux)
-target_link_libraries(LoopPass "$<$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>")
+target_link_libraries(CustomLICM "$<$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>")
