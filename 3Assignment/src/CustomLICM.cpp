@@ -12,8 +12,6 @@
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/IR/Dominators.h"
 
-#define IS_ES_1 0
-
 using namespace llvm;
 
 namespace {
@@ -63,45 +61,7 @@ struct LoopPass : PassInfoMixin<LoopPass> {
   // Main entry point, takes IR unit to run the pass on (&F) and the
   // corresponding pass manager (to be queried if need be)
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
-      if(IS_ES_1){
-        errs()<<"Nome funzione:\n"<<F.getName()<<"\n";
-        LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
-
-        //verifico che il cfg contiente almeno un loop
-        if(LI.empty()){
-          errs()<<"Nessun loop presente \n";
-          return PreservedAnalyses::all();
-        }
-
-        //scorriamo tutti i loop
-        for(Loop::iterator lit = LI.begin(); lit != LI.end(); lit++){
-          Loop *loop = *lit;
-          errs()<<"Entro nel loop esterno\n";
-          loop->getHeader()->printAsOperand(errs(), false);
-          errs()<<"\n";
-          printLoopInformation(loop);
-        }
-      }else{
-        DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
-
-        //radice albero
-        DomTreeNode *rootNode = DT.getRootNode();
-
-        //visito il D-Tree attraverso una visita DFS
-        for(DomTreeNode *DTN : depth_first(rootNode)){
-          BasicBlock *BB = DTN->getBlock();
-          DomTreeNode *imm = DTN->getIDom();
-
-          if(imm){
-            errs()<<"\nNodo:\n";
-            imm->getBlock()->printAsOperand(errs(), false);
-            errs()<<"-> Nodo: ";
-            BB->printAsOperand(errs(), false);
-            errs()<<"\n";
-          }
-        }
-      }  
-
+      
       return PreservedAnalyses::all();
     }
 
