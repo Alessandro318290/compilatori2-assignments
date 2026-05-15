@@ -16,26 +16,41 @@ using namespace llvm;
 
 namespace {
 
+  SetVector<Instruction *> search_loop_invariant_instructions(Loop *loop);
+
+  // Dato il loop più esterno, li visito tutti dal più interno al più esterno
+  void visitAllLoopsBottonUp(Loop *loop, DominatorTree &DT) {
+
+    for (Loop *SubLoop : *loop) {
+        visitAllLoopsBottonUp(SubLoop, DT);
+    }
+
+    SetVector<Instruction *> loop_invariant_instructions = search_loop_invariant_instructions(loop);
+
+    // Resto del codice qui
+
+  }
+
   // New PM implementation
   struct CustomLICM : PassInfoMixin<CustomLICM> {
 
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
 
       LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+      DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
 
       // Verifico se il CFG contiene almeno un loop
       if (LI.empty()) {
           errs() << "\nNella funzione non ci sono loop!\n";
           return PreservedAnalyses::all();
       }
-      
+
       // Scorro tutti i Loop del CFG
       for (Loop::iterator lit = LI.begin(); lit != LI.end(); lit++)
       {          
           Loop *loop = *lit;
 
-          //Codice qui
-
+          visitAllLoopsBottonUp(loop, DT);
       }
       
       return PreservedAnalyses::none();
