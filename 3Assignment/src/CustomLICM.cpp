@@ -16,53 +16,29 @@ using namespace llvm;
 
 namespace {
 
-  void printLoopInformation(Loop *loop){
-    //verifica se il loop è in forma normale
+  // New PM implementation
+  struct CustomLICM : PassInfoMixin<CustomLICM> {
 
-    if(loop->isLoopSimplifyForm()){
-      errs()<<"Loop in forma normale\n";
-    }else{
-      errs()<<"Loop non in forma normale\n";
-    }
+    PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
 
-    //recupero header del loop
-    BasicBlock *header = loop->getHeader();
+      LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
 
-    //recuper handle alla funzione padre del loop
-    Function *FPadre = header->getParent();
-
-    if(!FPadre)
-      errs()<<"Funzione padre non disponibile \n";
-
-    errs()<<"Nome funzione padre: "<<FPadre->getName()<<"\n";
-
-    //stampo cfg
-    errs()<<"Stampa CFG:\n";
-    errs()<<*FPadre<<"\n";
-
-    errs()<<"Lista blocchi del loop:\n";
-    for(Loop::block_iterator BI = loop->block_begin(); BI != loop->block_end(); ++BI){
-        BasicBlock *BB = *BI;
-        errs()<<*BB<<"\n";
+      // Verifico se il CFG contiene almeno un loop
+      if (LI.empty()) {
+          errs() << "\nNella funzione non ci sono loop!\n";
+          return PreservedAnalyses::all();
       }
-    
-      //chiamata ricorsiva sui propri loop interni
-    for(Loop *subLoop : loop->getSubLoops()){
-      errs()<<"entro nel subloop:\n";
-      subLoop->getHeader()->printAsOperand(errs(), false);
-      errs()<<"\ndi:\n";
-      loop->getHeader()->printAsOperand(errs(), false);
-      errs()<<"\n";
-      printLoopInformation(subLoop);
-    }
-  }
-// New PM implementation
-struct CustomLICM : PassInfoMixin<CustomLICM> {
-  // Main entry point, takes IR unit to run the pass on (&F) and the
-  // corresponding pass manager (to be queried if need be)
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
       
-      return PreservedAnalyses::all();
+      // Scorro tutti i Loop del CFG
+      for (Loop::iterator lit = LI.begin(); lit != LI.end(); lit++)
+      {          
+          Loop *loop = *lit;
+
+          //Codice qui
+
+      }
+      
+      return PreservedAnalyses::none();
     }
 
   };
