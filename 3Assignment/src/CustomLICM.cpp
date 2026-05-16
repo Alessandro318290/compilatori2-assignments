@@ -16,8 +16,7 @@ using namespace llvm;
 
 namespace {
 
-  // Con questo (Mock/Stub della Fase 1 per il test):
-  // FASE 1 - Stub di test super-selettivo
+  
   SetVector<Instruction *> search_loop_invariant_instructions(Loop *loop);
 
   // Funzione per la verifica delle condizioni per la code motion
