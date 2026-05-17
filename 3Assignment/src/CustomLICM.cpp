@@ -157,6 +157,38 @@ namespace {
 
   }
 
+  /** questa istruzione si occuperà di spostare le istruzioni candidate alla code motion.
+   * @param preheader : puntatore al preheader del loop (dove sposteremo le istruzioni)
+   * @param CandidateInstruction : vettore con all'interno le istruzioni candidate alla code motion
+   * Non abbiamo bisogno che la funzione restituisca qualcosa, dato che si deve occupare solamente
+   * di spostare le istruzioni che gli vengono passate in input, perciò il tipo sarà void**/
+  void moveCandidateInstructions(BasicBlock *preheader,
+    std::vector<Instruction *> CandidateInstrucion){
+
+      //puntatore all'ultima istruzione del BB Preheader (di solito una di controllo di flusso)
+      Instruction *InsertPT = preheader->getTerminator();
+
+      errs()<<"\n Inizio a spostare le istruzioni \n";
+      for(Instruction *I : CandidateInstrucion){
+        errs()<<"Istruzione da spostare: ";
+        I->print(errs());
+        errs()<<"\n";
+        errs()<<"BB genitore PRIMA DELLO SPOSTAMENTO:\n";
+        I->getParent()->printAsOperand(errs(), false);
+        errs()<<"\n";
+
+        //sposta l'istruzione nel preheader;
+        //come detto prima, l'ultima istruzione di un BB è un'istruzione di controllo del flusso del programma, quindi spostiamo l'istruzione prima
+        //in modo tale che l'istruzione venga eseguita una sola volta prima del loop, senza che venga alterato il controllo di flusso del BB
+        I->moveBefore(InsertPT);
+        errs()<<"Istruzione spostata\n";
+        errs()<<"BB genitore DOPO LO SPOSTAMENTO:\n";
+        I->getParent()->printAsOperand(errs(), false);
+        errs()<<"\n";
+      }
+      errs()<<"Istruzioni da spostare finite \n";
+  }
+
   /**
    * Tramite una strategia ricorsiva bottom-up, visita tutti i cicli di un ciclo esterno
    * 
@@ -200,6 +232,7 @@ namespace {
     if (preheader && !candidate_instructions.empty()){
       changed = true;
       // resto del codice qua
+      moveCandidateInstructions(preheader, candidate_instructions);
     }
 
     return changed;
