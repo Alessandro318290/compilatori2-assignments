@@ -16,8 +16,73 @@ using namespace llvm;
 
 namespace {
 
+  /**
+   * Versione più raffinata della funzione nativa LLVM isLoopInvariant
+   * che confronta anche le istruzioni già segnate come loop-invariant
+   * 
+   * @param I Riferimento all'istruzione del ciclo
+   * @param loop Puntatore al loop
+   * @param invariants Puntatore all'insieme di istruzioni del ciclo già segnate come loop-invariant
+   * @return True se l'istruzione è veramente loop-invariant, false altrimenti
+   */
+  bool isReallyInvariant(Instruction &I, Loop *loop, SetVector<Instruction*> *invariants) {
+
+    for (Value *Op : I.operands()) {
+
+      // L'operando è un'istruzione se il cast non ritorna null
+      Instruction *OpInst = dyn_cast<Instruction>(Op);
+
+      // bool Loop::isLoopInvariant(const Value *V) const {
+      //   if (const Instruction *I = dyn_cast<Instruction>(V))
+      //     return !contains(I);
+      //   return true; // All non-instructions are loop invariant
+      // }
+      
+      /* 
+      Un operando NON è invariante se è definito all'interno del ciclo ma 
+      l'istruzione che lo definisce non è già stata segnata come invariante
+      */
+      if (!loop->isLoopInvariant(Op) && (!OpInst || !invariants->count(OpInst))) {
+        return false;
+      }
+    }
+    return true;
+  }
   
-  SetVector<Instruction *> search_loop_invariant_instructions(Loop *loop);
+  /**
+   * Dato un loop, ritorna l'insieme delle istruzioni valutate come loop-invariant
+   * 
+   * @param loop Puntatore al loop
+   * @return SetVector<Instruction *> Un insieme ordinato contenente le istruzioni loop-invariant individuate
+   */
+  SetVector<Instruction *> search_loop_invariant_instructions(Loop *loop) {
+
+    SetVector<Instruction *> invariants; 
+    bool isChanged = true;
+
+    while (isChanged) {
+      isChanged = false;
+
+      // Scorro tutti i blocchi del loop
+      for (BasicBlock *BB : loop->getBlocks()) {
+
+        for (Instruction &I : *BB) {
+
+          // Se l'istruzione è già stata marcata o è il risultato di un'istruzione phi
+          if (invariants.count(&I) || isa<PHINode>(&I))
+            continue;
+
+          // Verifica se l'istruzione attuale è veramente loop-invariant
+          if (isReallyInvariant(I, loop, &invariants)) {
+            invariants.insert(&I);
+            isChanged = true;
+          }
+        }
+      }
+    }
+
+    return invariants;
+  }
 
   // Funzione per la verifica delle condizioni per la code motion
   /** prende in unput il set delle istruzioni invarianti (MICH), il loop e il DominatorTree
@@ -36,7 +101,7 @@ namespace {
     loop->getExitBlocks(exit_blocks);
     // itero sulle istruzioni identificate come invarianti dalla parte di MICH
     for (Instruction *I : invariant_instructions) {
-        if (I->isTerminator() || isa<PHINode>(I)) continue; // controllo di integrità base: non sposto terminatori o nodi PHI
+        if (I->isTerminator() || isa<PHINode>(I) || I->mayHaveSideEffects()) continue; // controllo di integrità base: non sposto terminatori, nodi PHI o istruzioni con side effect
       
       // condizione di dominanza delle usite del loop
       bool dominates_all_exits = true;
@@ -92,21 +157,36 @@ namespace {
 
   }
 
-  // Dato il loop più esterno, li visito tutti dal più interno al più esterno
-  void visitAllLoopsBottonUp(Loop *loop, DominatorTree &DT) {
+  /**
+   * Tramite una strategia ricorsiva bottom-up, visita tutti i cicli di un ciclo esterno
+   * 
+   * @param loop Puntatore al loop
+   * @param DT Dominator Tree del programma
+   * @return True se è avvenuta almeno una trasformazion all'IR, false altrimenti. 
+   */
+  bool visitAllLoopsBottonUp(Loop *loop, DominatorTree &DT) {
 
+    bool changed = false;
+
+    // Visito i propri loop annidati
     for (Loop *SubLoop : *loop) {
-        visitAllLoopsBottonUp(SubLoop, DT);
+      changed |= visitAllLoopsBottonUp(SubLoop, DT);
     }
 
+    // Insieme di istruzioni loop-invariant
     SetVector<Instruction *> loop_invariant_instructions = search_loop_invariant_instructions(loop);
-
-    std::vector<Instruction *> candidate_instructions =
-      filter_safe_to_move_instructions(loop_invariant_instructions, loop, DT);
     
-    // recupero il preheader da dare come input a leo insieme al vettore
-    BasicBlock *preheader = loop->getLoopPreheader();
+    for (auto test: loop_invariant_instructions) {
+      outs() << "Istruzione: ";
+      test->print(outs());
+      outs() << "\n";
+    }
 
+    std::vector<Instruction *> candidate_instructions = filter_safe_to_move_instructions(loop_invariant_instructions, loop, DT);
+    
+    // recupero il preheader
+    BasicBlock *preheader = loop->getLoopPreheader();
+  
     errs() << "Istruzioni filtrate e pronte per la Code Motion:\n";
     if (candidate_instructions.empty()) {
       errs() << "Nessuna istruzione sicura\n";
@@ -115,36 +195,43 @@ namespace {
         errs() << " -> " << *I << "\n";
       }
     }
-
+  
     // Leo qua dovrà prendere candidate_instructions e preheader
     if (preheader && !candidate_instructions.empty()){
+      changed = true;
       // resto del codice qua
     }
+
+    return changed;
   }
 
-  // New PM implementation
   struct CustomLICM : PassInfoMixin<CustomLICM> {
 
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM) {
 
+      // CFG - Itera sui cicli più esterni
       LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+      // Albero dei dominatori - Valuta le condizioni per la code motion
       DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
 
-      // Verifico se il CFG contiene almeno un loop
+      // Verifica se il CFG contiene almeno un loop
       if (LI.empty()) {
           errs() << "\nNella funzione non ci sono loop!\n";
           return PreservedAnalyses::all();
       }
 
-      // Scorro tutti i Loop del CFG
-      for (Loop::iterator lit = LI.begin(); lit != LI.end(); lit++)
-      {          
-          Loop *loop = *lit;
+      // Determina se è stata applicata almeno una code motion
+      bool has_licm_been_applicated = false;
 
-          visitAllLoopsBottonUp(loop, DT);
+      // Scorre tutti i Loop del CFG
+      for (Loop *loop : LI) {        
+        has_licm_been_applicated |= visitAllLoopsBottonUp(loop, DT);
       }
       
-      return PreservedAnalyses::none();
+      if (has_licm_been_applicated)
+        return PreservedAnalyses::none();
+      else
+        return PreservedAnalyses::all();
     }
 
   };

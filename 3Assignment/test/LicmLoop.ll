@@ -1,7 +1,7 @@
-; ModuleID = 'Loop.c'
+; ModuleID = 'Loop.ll'
 source_filename = "Loop.c"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
-target triple = "x86_64-pc-linux-gnu"
+target triple = "x86_64-unknown-linux-gnu"
 
 ; Function Attrs: nounwind uwtable
 define dso_local i32 @loop(i32 noundef %0, i32 noundef %1, i32 noundef %2) #0 {
@@ -22,39 +22,27 @@ define dso_local i32 @loop(i32 noundef %0, i32 noundef %1, i32 noundef %2) #0 {
   %10 = add nsw i32 %.01, 1
   br label %4, !llvm.loop !5
 
-26:                                               ; preds = %13
-  %27 = load i32, ptr %4, align 4
-  store i32 %27, ptr %7, align 4
-  br label %28
+11:                                               ; preds = %4
+  br label %12
 
-28:                                               ; preds = %41, %26
-  %29 = load i32, ptr %7, align 4
-  %30 = load i32, ptr %5, align 4
-  %31 = icmp slt i32 %29, %30
-  br i1 %31, label %32, label %44
+12:                                               ; preds = %18, %11
+  %.12 = phi i32 [ %0, %11 ], [ %19, %18 ]
+  %.1 = phi i32 [ %.0, %11 ], [ %17, %18 ]
+  %13 = icmp slt i32 %.12, %1
+  br i1 %13, label %14, label %20
 
-32:                                               ; preds = %28
-  %33 = load i32, ptr %9, align 4
-  %34 = load i32, ptr %10, align 4
-  %35 = add nsw i32 %33, %34
-  store i32 %35, ptr %12, align 4
-  %36 = load i32, ptr %12, align 4
-  %37 = load i32, ptr %7, align 4
-  %38 = mul nsw i32 %36, %37
-  %39 = load i32, ptr %8, align 4
-  %40 = add nsw i32 %39, %38
-  store i32 %40, ptr %8, align 4
-  br label %41
+14:                                               ; preds = %12
+  %15 = add nsw i32 5, 3
+  %16 = mul nsw i32 %15, %.12
+  %17 = add nsw i32 %.1, %16
+  br label %18
 
-41:                                               ; preds = %32
-  %42 = load i32, ptr %7, align 4
-  %43 = add nsw i32 %42, 1
-  store i32 %43, ptr %7, align 4
-  br label %28, !llvm.loop !8
+18:                                               ; preds = %14
+  %19 = add nsw i32 %.12, 1
+  br label %12, !llvm.loop !8
 
-44:                                               ; preds = %28
-  %45 = load i32, ptr %8, align 4
-  ret i32 %45
+20:                                               ; preds = %12
+  ret i32 %.1
 }
 
 ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(argmem: readwrite)
