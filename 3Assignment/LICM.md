@@ -7,7 +7,7 @@ L'assignment in questione richiede l'implementazione del passo di ottimizzazione
 ---
 # Condizioni iniziali
 
-![[Pasted image 20260517122251.png]]
+![Immagine 1](assets/Pasted%20image%2020260517122251.png)
 
 Si parte con la definizione di due oggetti fondamentali per l'algoritmo:
 
@@ -24,7 +24,7 @@ In conclusione si procede a iterare su ogni ciclo esterno del programma richiama
 ---
 # Visita di tutti i cicli del programma - `visitAllLoopsBottonUp`
 
-![[Pasted image 20260517122316.png]]
+![Immagine 2](assets/Pasted%20image%2020260517122316.png)
 
 Per visitare tutti i loop del programma non basta iterare solo sull'oggetto `LoopInfo` poiché questo ritorna soltanto i loop esterni. Un loop infatti può a sua volta contenere altri loop e così via.
 
@@ -86,7 +86,7 @@ Per ottenere questo risultato si chiama la funzione `search_loop_invariant_instr
 SetVector<Instruction *> loop_invariant_instructions = search_loop_invariant_instructions(loop);
 ```
 
-![[Pasted image 20260517122327.png]]
+![Immagine 3](assets/Pasted%20image%2020260517122327.png)
 
 La motivazione dietro l'uso di un oggetto della classe `SetVector` anziché di un usuale `std::vector` è giustificata dal fatto che la struttura dati `SetVector` si comporta come `std::vector` , ma garantisce l'assenza di duplicati e preserva l'ordine logico di inserimento. In mancanza di istruzioni loop-invariant verrà restituito un oggetto vuoto, cioè `<setVector>.empty() = true`.
 
@@ -164,7 +164,7 @@ Dato che un'istruzione può essere loop-invariant anche quando il suo operando �
 
 In ambo i casi, quando un'istruzione viene riconosciuta come tale, è importante inserirla nel `SetVector`, in modo da utilizzarla nelle ricerche successive.
 
-![[Pasted image 20260517122341.png]]
+![Immagine 4](assets/Pasted%20image%2020260517122341.png)
 
 Nonostante il formato SSA semplifichi il controllo delle definizioni, l'ordine in cui i `basicBlock` di un loop sono memorizzati all'interno dell'IR non riflette necessariamente l'ordine temporale di esecuzione, specialmente in cicli complessi con diversi blocchi.
 
