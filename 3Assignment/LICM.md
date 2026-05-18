@@ -199,5 +199,172 @@ Avendo rilevato un cambiamento, il `while` riesegue il ciclo sui blocchi partend
 **Iterazione 3**
 L'algoritmo compie un ultimo giro di controllo in cui nessuna nuova istruzione viene marcata. `isChanged` rimane `false`, determinando l'uscita del ciclo.
 
+# Code Motion
 
+Una volta ottenuto l'insieme delle istruzioni loop-invariant, non è detto che tutte possano essere spostate liberamente nel preheader. La **code motion** è l'operazione di spostamento fisico di un'istruzione dal suo blocco originale al preheader del loop, ma affinché tale operazione sia **semanticamente corretta**, è necessario verificare una serie di condizioni preliminari.
 
+> L'obiettivo della fase di code motion è individare, tra tutte le istruzioni, quelle per cui lo spostamento nel preheader **non altera il comportamento osservabile del programma**.
+
+---
+# Condizioni per la Code Motion
+
+Dato un'istruzione loop-invariant `I`, lo spostamento nel preheader è lecito se valgono **tutte** le seguenti condizioni:
+
+1. **Assenza di side effects** - L'istruzione non deve produrre effetti collaterali osservabili (scritture in memoria, chiamate a funzione, eccezioni, ecc...).
+2. **Dominanza delle uscite del loop** - Il blocco che contiene `I` deve dominare tutti i blocchi di uscita del loop, oppure `I` deve essere un'operazione intrinscamente sicura (come un `BinaryOperator`).
+3. **Definizione unica nel loop** - In SSA questa proprietà è sempre soddisfatta per i registri virtuali, poiché ogni valore è definito esattamente una volta.
+4. **Dominanza di tutti gli usi interni al loop** - Il blocco di `I` deve dominare ogni blocco che contiene un uso di `I` all'interno del loop.
+
+Per la valutazione di queste condizioni viene utilizzata la funzione `filter_safe_to_move_instructions`, che riceve in input l'insieme delle istruzioni loop-invariant e restituisce il sottoinsieme effettivamente candidato alla code motion.
+
+```c
+std::vector<Instruction *>filter_safe_to_move_instructions(
+    const SetVector<Instruction *> &invariant_instructions,
+    Loop *loop,
+    DominatorTree &DT
+  )
+```
+
+---
+# Funzione `filter_safe_to_move_instructions()`
+
+> Questa funzione ha il compito di **filtrare l'insieme delle istruzioni loop-invariant**, conservando solo quelle per cui la code motion è semanticamente sicura.
+
+## Controllo di integrità di base
+
+Il primo filtraggio è immediato e scarta direttamente le istruzioni che, per natura, non possono mai essere hoistate:
+
+```c
+if (I->isTerminator() || isa<PHINode>(I) || I->mayHaveSideEffects()) continue;
+```
+
+- **Terminatori** - Le istruzioni come `br` o `ret` gestiscono il flusso di controllo del blocco e non possono essere spostate.
+- **Nodi PHI** - Come discusso nella fase di ricerca delle istruzioni loop-invariant, un nodo `phi` rappresenta per definizione la confluenza di più flussi di dati. Spostarli nel preheader violerebbe la semantica SSA.
+- **Istruzioni con side effects** - Scritture di memorie (`store`) , chiamate a funzione (`call`) o istruzioni che possono generare eccezioni possono alterare il comportamento osservabile del programma. Il metodo `mayHaveSideEffects()` del framework LLVM verifica automaticamente questa proprietà.
+
+## Condizione 1 - Dominanza delle uscite
+
+La motivazione di questa condizione è la seguente: se `I` si trova in un blocco che non domina tutte le uscite, allora esiste un percorso di esecuzione del loop che termina **senza mai attraversare il blocco di `I`**. In un tale percorso, l'istruzione non verrebbe mai eseguita. Spostarla nel preheader la farebbe eseguire **incondizionatamente**, modificando il comportamento del programma.
+
+```c
+SmallVector<BasicBlock *, 8> exit_blocks;
+loop->getExitBlocks(exit_blocks);
+// itero sulle istruzioni identificate come invarianti 
+for (Instruction *I : invariant_instructions) {
+	if (I->isTerminator() || isa<PHINode>(I) || I->mayHaveSideEffects()) continue; // controllo di integrità base: non sposto terminatori, nodi PHI o istruzioni con side effect
+	
+	// condizione di dominanza delle usite del loop
+	bool dominates_all_exits = true;
+	BasicBlock *inst_bb = I->getParent(); // identifico il blocco in cui si trova l'istruzione
+	// verifico se il blocco dell'istruzione domina tutti i blocchi di uscita
+	for (BasicBlock *exit_bb : exit_blocks) {
+		if (!DT.dominates(inst_bb, exit_bb)) {
+			dominates_all_exits = false;
+			break; // basta che non ne domini uno per invalidare la condizione
+		}
+}
+```
+
+Il metodo `loop->getExitBlocks()` restituisce tutti i blocchi che sono al di fuori del loop ma che hanno almeno un predecessore interno ad esso. Per ogni istruzione, si verifica che il suo blocco padre `inst_bb` domini ciascuno di questi blocchi di uscita tramite il `DominatorTree`.
+
+### Eccezione per i `BinaryOperators`
+
+Nel caso in cui la condizione di dominanza non sia soddisfatta, l'istruzione non viene scartata immediatamente se si stratta di un `BinaryOperator` (operazioni aritmetiche come `add`, `mul`, `sub`, ecc.)
+
+```c
+if (!dominates_all_exits) {
+// Se è un BinaryOperator (add, mul, sub...), è un'istruzione intrinsecamente "safe"
+// che non genera eccezioni. Quindi posso sollevarla anche se il blocco non domina le uscite.
+	if (!isa<BinaryOperator>(I)) {
+		continue; // Se non è un BinOp e non domina le uscite, la scarto definitivamente
+	}
+}
+```
+
+La motivazione è che le operazioni aritmetiche su interi sono **totali e prive di eccezioni** (ad esclusione della divisione intera per zero, che tuttavia in LLVM IR è un comportamento non definito e non un'eccezione hardware). Spostarle nel preheader, anche se il loro blocco non domina tutte le uscite, non altera il comportamento osservabile del programma: l'unico effetto è seguire un calcolo il cui risultato potrebbe non essere utilizzato in alcuni percorsi, ma senza alcuna conseguenza sullo stato della memoria o sul flusso di controllo. 
+
+Si consideri il seguente scenario applicato al primo loop del programma di test `Loop.c`
+
+```c
+  for (i = 0; i < 10; i++) {
+    z = x * y;       // loop-invariant deve essere hoistato
+    ret = ret + z;   // NON loop-invariant (dipende da ret)
+  }
+```
+
+Nell'IR corrispondente `Loop.m2r.ll`, il blocco `%6` contiene l'istruzione `%7 = mul nsw i32 5, 3`. Il blocco di uscite del loop è `%11`. Poiché `%6` è il corpo del loop e non il suo header non domina necessariamente `%11` (si può direttamente dall'header `%4` senza mai entrare in `%6`). Grazie all'eccezione per i `BinaryOperator`, l'istruzione `mul` supera comunque il filtro e viene inserita nel vettore `safe_to_move` come candidata alla code motion.
+
+## Condizione 2 - Dominanza degli usi interni
+
+Anche se un'istruzione è loop-invariant e sicura da eseguire nel preheader, è necessario verificare che **tutti i suoi usi all'interno del loop** si trovino in blocchi che essa domina. In caso contrario, potrebbe esistere un percorso in cui un uso di `I` viene raggiunto prima che `I` stessa sia eseguita, violando la correttezza del programma.
+
+```c
+bool dominates_all_uses = true;
+// itero su tutti gli utilizzatori dell'istruzione I
+for (User *U : I->users()) {
+	if (Instruction *user_inst = dyn_cast<Instruction>(U)){
+// mi interesso solo su gli utilizzatori che si trovano dentro il loop
+		if (loop->contains(user_inst)) {
+// controllo se l'istruzione I domina l'utilizzatore U
+			if (!DT.dominates(I, user_inst)){
+				dominates_all_uses = false;
+				break;
+			}
+		}
+	}
+}
+
+if (!dominates_all_uses) {
+	continue;// non domina tutti i suoi usi, allora l'istruzione viene scartata
+}
+```
+
+Il metodo `I->users()` restituisce tutti gli utilizzatori del valore prodotto da `I`. Il controllo viene ristretto ai suoi usi **interni al loop** tramite `loop->contains(user_inst)`, poiché gli usi esterni non sono influenzati dallo spostamento nel preheader. Per ciascuno di essi, il `DominatorTree` verifica che `I` domini `user_inst`
+
+---
+# Esempio Pratico - `Loop.c`
+
+Si analizza il comportamento dell'intero algoritmo applicato ai due loop di `Loop.c`
+
+## Primo loop
+
+```c
+// Caso classico LICM: x*y è loop-invariant
+// Caso classico LICM: x*y è loop-invariant
+for (i = 0; i < 10; i++) {
+	z = x * y;       // loop-invariant deve essere hoistato
+	ret = ret + z;   // NON loop-invariant (dipende da ret)
+}
+```
+
+Nell'IR (`Loop.m2r.ll`), le istruzioni rilevanti del blocco `%6` (corpo del loop) sono:
+
+```c
+%7 = mul nsw i32 5, 3   ; z = x * y  →  loop-invariant (operandi costanti)
+%8 = add nsw i32 %.0, %7 ; ret = ret + z  →  NON loop-invariant (%.0 è phi)
+```
+
+- `%7` viene identificata come loop-invariant nella fase precedente.
+- `filter_safe_to_move_instructions` la valida: è un `BinaryOperator`, quindi supera la condizione di dominanza delle uscite anche se il blocco `%6` non domina `%11`. Domina inoltre il proprio unico uso interno (`%8`).
+- `%7` supera tutti i filtri e viene inserita nel vettore `safe_to_move`, risultando candidata alla code motion.
+
+## Secondo loop
+ 
+```c
+for (i = a; i < b; i++) {
+  int w = x + y;   // loop-invariant
+  ret += w * i;    // NON loop-invariant
+}
+```
+ 
+Nell'IR, il blocco `%14` contiene:
+ 
+```c
+%15 = add nsw i32 5, 3    ; w = x + y  →  loop-invariant (operandi costanti)
+%16 = mul nsw i32 %15, %.12 ; w * i  →  NON loop-invariant (%.12 è phi su i)
+%17 = add nsw i32 %.1, %16  ; ret += ...  →  NON loop-invariant
+```
+ 
+- `%15` viene identificata come loop-invariant.
+- Supera tutti i filtri: è un `BinaryOperator` e domina i propri usi interni.
+- `%15` supera tutti i filtri e viene inserita nel vettore `safe_to_move`, risultando candidata alla code motion.

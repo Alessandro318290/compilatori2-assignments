@@ -84,9 +84,13 @@ namespace {
     return invariants;
   }
 
-  // Funzione per la verifica delle condizioni per la code motion
-  /** prende in unput il set delle istruzioni invarianti (MICH), il loop e il DominatorTree
-   *  restituisce il vettore di istruzione candidate (sicure da spostare) 
+  /**
+   * Funzione per la verifica delle condizioni per la code motion
+   * 
+   * @param invariant_instructions Set delle istruzioni invarianti
+   * @param loop Puntatore al loop
+   * @param DT Dominator Tree
+   * @return Vettore di istruzioni candidate (sicure da spostare)
    */
   std::vector<Instruction *>filter_safe_to_move_instructions(
     const SetVector<Instruction *> &invariant_instructions,
@@ -99,7 +103,7 @@ namespace {
     // vado a recuperare i blocchi di uscita dal loop
     SmallVector<BasicBlock *, 8> exit_blocks;
     loop->getExitBlocks(exit_blocks);
-    // itero sulle istruzioni identificate come invarianti dalla parte di MICH
+    // itero sulle istruzioni identificate come invarianti 
     for (Instruction *I : invariant_instructions) {
         if (I->isTerminator() || isa<PHINode>(I) || I->mayHaveSideEffects()) continue; // controllo di integrità base: non sposto terminatori, nodi PHI o istruzioni con side effect
       
@@ -114,18 +118,19 @@ namespace {
         }
       }
 
-      // Se NON domina tutte le uscite, controlliamo se possiamo salvarla
+      // Se NON domina tutte le uscite, controllo se posso salvarla
       if (!dominates_all_exits) {
         // Se è un BinaryOperator (add, mul, sub...), è un'istruzione intrinsecamente "safe"
-        // che non genera eccezioni. Quindi possiamo sollevarla anche se il blocco non domina le uscite.
+        // che non genera eccezioni. Quindi posso sollevarla anche se il blocco non domina le uscite.
         if (!isa<BinaryOperator>(I)) {
-          continue; // Se non è un BinOp e non domina le uscite, la scartiamo definitivamente
+          continue; // Se non è un BinOp e non domina le uscite, la scarto definitivamente
         }
       }
 
-      /** Definizione unica nel loop
-       *  In SSA questa condizione è sempre era per i registri virtuali. 
-       *  Il passa lavora solo su Binary Operators, quindi assumiamo sia vera
+      /** 
+       * Definizione unica nel loop
+       * In SSA questa condizione è sempre era per i registri virtuali. 
+       * Il passa lavora solo su Binary Operators, quindi assumiamo sia vera
        */
 
       // Dominanza degli usi
@@ -148,7 +153,7 @@ namespace {
         continue;// non domina tutti i suoi usi, allora l'istruzione viene scartata
       }
 
-      // se l'istruzione supera tutti i filtri, viene aggiunta all'output per Leo
+      // se l'istruzione supera tutti i filtri
       safe_to_move.push_back(I);
 
     }
@@ -228,15 +233,14 @@ namespace {
       }
     }
   
-    // Leo qua dovrà prendere candidate_instructions e preheader
     if (preheader && !candidate_instructions.empty()){
       changed = true;
-      // resto del codice qua
       moveCandidateInstructions(preheader, candidate_instructions);
     }
 
     return changed;
   }
+  
 
   struct CustomLICM : PassInfoMixin<CustomLICM> {
 
