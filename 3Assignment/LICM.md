@@ -368,3 +368,49 @@ Nell'IR, il blocco `%14` contiene:
 - `%15` viene identificata come loop-invariant.
 - Supera tutti i filtri: è un `BinaryOperator` e domina i propri usi interni.
 - `%15` supera tutti i filtri e viene inserita nel vettore `safe_to_move`, risultando candidata alla code motion.
+
+---
+
+# Funzione moveCandidateInstructions
+
+> Abbiamo ora un vettore contenente tutte le istruzioni, che sono candidate alla code motion, che è sicuro poter spostare senza il rischio di alterare il flusso logico del programma.
+> Non ci resta altro che spostarle nel preheader del loop.
+
+## Input e Output:
+
+- Input: Vettore std::vector<Instruction *> CandidateInstrucion che conterrà le istruzioni che dobbiamo spostare, BasicBlock *preheader che è un puntatore al preheader del loop
+- Output: niente, la funzione è di tipo void perché non abbiamo bisogno che restituisca qualche tipo di dato, solo che sposti le istruzioni candidate alla code motion.
+
+## Codice della funzione
+
+```c
+	void moveCandidateInstructions(BasicBlock *preheader,
+    std::vector<Instruction *> CandidateInstrucion){
+
+      //puntatore all'ultima istruzione del BB Preheader (di solito una di controllo di flusso)
+      Instruction *InsertPT = preheader->getTerminator();
+
+      errs()<<"\n Inizio a spostare le istruzioni \n";
+      for(Instruction *I : CandidateInstrucion){
+        errs()<<"Istruzione da spostare: ";
+        I->print(errs());
+        errs()<<"\n";
+        errs()<<"BB genitore PRIMA DELLO SPOSTAMENTO:\n";
+        I->getParent()->printAsOperand(errs(), false);
+        errs()<<"\n";
+
+        //sposta l'istruzione nel preheader;
+        //come detto prima, l'ultima istruzione di un BB è un'istruzione di controllo del flusso del programma, quindi spostiamo l'istruzione prima
+        //in modo tale che l'istruzione venga eseguita una sola volta prima del loop, senza che venga alterato il controllo di flusso del BB
+        I->moveBefore(InsertPT);
+        errs()<<"Istruzione spostata\n";
+        errs()<<"BB genitore DOPO LO SPOSTAMENTO:\n";
+        I->getParent()->printAsOperand(errs(), false);
+        errs()<<"\n";
+      }
+      errs()<<"Istruzioni da spostare finite \n";
+  }
+```
+- Instruction *InsertPT = preheader->getTerminator(); //Prendiamo il terminatore del BB preheader, in modo da avere un punto di riferimento su dove spostare le nostre istruzioni
+- for(Instruction *I : CandidateInstrucion) //Scorriamo in maniera sequenziale ogni istruzione
+- I->moveBefore(InsertPT); //Spostiamo l'istruzione PRIMA del terminatore, di solito i terminatore sono istruzioni che operano sul flusso del programma (es: istruzioni phi o branch), per non alterare il flusso del programma le inseriamo PRIMA.
