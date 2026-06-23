@@ -10,9 +10,13 @@ using namespace llvm;
  *   - Moltiplicazione
  *   - Divisione
  * 
- * La strength reduction viene applicata alle istruzioni mul e div che dispongono di un solo operando costante, non entrambi.
+ * La strength reduction viene applicata alle istruzioni mul e div che dispongono di un solo operando costante, 
+ * non entrambi (in tal caso è consigliata una constant folding).
  * 
- * Il caso base si verifica quando la costante è una potenza di due, in tal caso basterà sostituire la mul con una lshift e la div con una rigth shift.
+ * Il caso base si verifica quando la costante è una potenza di due, in tal caso basterà sostituire la mul con una lshift,
+ * e la div con una right shift aritmetica o logica a seconda della tipologia di divisione.
+ * (Dividendo è unsigned) => UDiv => LShr
+ * (Dividendo è signed)   => SDiv => AShr
  * 
  * x * K => x << n; K = 2^n
  * x / K => x >> n; K = 2^n
@@ -37,6 +41,16 @@ namespace {
 
       // Analisi
 
+      /*
+      SmallVector è una classe che gestisce meglio la memoria riducendo il numero di allocazioni nello heap.
+      
+      A differenza della classe std::Vector, SmallVector<T, N> inizializza sullo stack un vettore contiguo di N elementi.
+      Se, a tempo di esecuzione, il numero di elementi da inserire è > N, 
+      allora viene allocata memoria nell'heap ed effettua una copia dei dati lì.
+
+      Siccome tendenzialmente all'interno di un blocco il numero di istruzioni compatibili con la SR non eccedono in quantità,
+      statisticamente si riesce a ridurre quasi del tutto il bisogno di allocare memoria nell'Heap.
+      */
       SmallVector<Instruction*, 16> instToErase;
 
       for (auto &B : F) {
@@ -45,6 +59,12 @@ namespace {
           // === MOLTIPLICAZIONE ===
           if (I.getOpcode() == Instruction::Mul) {
 
+            /*
+            Questa versione di strength reduction è finalizzata ad analizzare IR per i quali sono già stati applicati delle ottimizzazioni di base, 
+            tra le quali la canonalizzazione delle istruzioni (instcombine).
+            Questo passo di ottimizzazione garantisce che l'operando costante venga posizionato sempre in seconda posizione, 
+            quindi estraibile sempre attraverso getOperand(1).
+            */
             ConstantInt *op2 = dyn_cast<ConstantInt>(I.getOperand(1));
             if (!op2) continue;
 
@@ -78,7 +98,7 @@ namespace {
               BinaryOperator *lshift = BinaryOperator::Create(
                 Instruction::Shl,
                 I.getOperand(0),
-                ConstantInt::get(op2->getIntegerType(), exp)
+                ConstantInt::get(I.getOperand(0)->getType(), exp)
               );
 
               lshift->insertBefore(&I);
@@ -87,7 +107,7 @@ namespace {
 
                 BinaryOperator *negativeSub = BinaryOperator::Create(
                   Instruction::Sub,
-                  ConstantInt::get(op2->getIntegerType(), 0),
+                  ConstantInt::get(I.getOperand(0)->getType(), 0),
                   lshift
                 );
 
@@ -115,7 +135,7 @@ namespace {
               BinaryOperator *lshift = BinaryOperator::Create(
                 Instruction::Shl,
                 I.getOperand(0),
-                ConstantInt::get(op2->getIntegerType(), expNear)
+                ConstantInt::get(I.getOperand(0)->getType(), expNear)
               );
 
               BinaryOperator *result = NULL;
@@ -181,7 +201,7 @@ namespace {
               BinaryOperator *rshift = BinaryOperator::Create(
                 I.getOpcode() == Instruction::UDiv ? Instruction::LShr : Instruction::AShr,
                 I.getOperand(0),
-                ConstantInt::get(op2->getIntegerType(), exp)
+                ConstantInt::get(I.getOperand(0)->getType(), exp)
               );
 
               rshift->insertBefore(&I);
@@ -190,7 +210,7 @@ namespace {
 
                 BinaryOperator *negativeSub = BinaryOperator::Create(
                   Instruction::Sub,
-                  ConstantInt::get(op2->getIntegerType(), 0),
+                  ConstantInt::get(I.getOperand(0)->getType(), 0),
                   rshift
                 );
 
