@@ -8,10 +8,9 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Function Attrs: noinline nounwind uwtable
 define dso_local i32 @main(i32 noundef %0) #0 {
   %2 = add nsw i32 %0, 1
-  %3 = sub nsw i32 %2, 1
-  %4 = add nsw i32 %2, 1
-  %5 = sub nsw i32 %2, 2
-  %6 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %3, i32 noundef %4, i32 noundef %5)
+  %3 = add nsw i32 %2, 1
+  %4 = sub nsw i32 %2, 2
+  %5 = call i32 (ptr, ...) @printf(ptr noundef @.str, i32 noundef %0, i32 noundef %3, i32 noundef %4)
   ret i32 0
 }
 
