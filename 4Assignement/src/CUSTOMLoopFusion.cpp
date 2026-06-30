@@ -50,6 +50,8 @@ namespace {
       changed |= visitAllLoopsBottonUp(SubLoop, DT, PDT, SE, prevSub, LI, DI, F);
 
       prevSub = SubLoop;
+      if(changed)
+        return true;
     }
 
     if(prev == nullptr){ //se prev è vuoto, non abbiamo nessun altro loop con cui fondere
@@ -277,14 +279,10 @@ namespace {
         }
     }
 
-    LI.erase(loop);     // cancella loop assorbito
-    loop = prev; 
-    
-
     loop = prev;
 
     errs()<<"\nLoop fusion completata, prossimo loop \n";
-    return changed;
+    return true;
   }
 
   struct CUSTOMLoopFusion : PassInfoMixin<CUSTOMLoopFusion> {
@@ -319,11 +317,26 @@ namespace {
       for (Loop *loop : Loops) {        
         has_loop_fusion_been_applicated |= visitAllLoopsBottonUp(loop, DT, PDT, SE, prev, LI, DI, F);
         prev = loop;
+        if(has_loop_fusion_been_applicated){
+          errs()<<"\n E' stata applicata la loop fusion - far ripartire il programma...\n";
+          errs()<<" ...per avere le tabelle aggiornate \n";
+          return PreservedAnalyses::none();
+        }
       }
       
-      if (has_loop_fusion_been_applicated)
+      if (has_loop_fusion_been_applicated){
         return PreservedAnalyses::none();
-      else
+        errs()<<"\n E' stata applicata la loop fusion - far ripartire il programma...\n";
+          errs()<<" ...per avere le tabelle aggiornate \n";
+          /*NOTA: ho provato ad aggiornare manualmente le tabelle di dominanza, postdominanza e loop info
+          ma il passo crashava, facendo come stiamo facendo ora il passo si ferma ogni volta che effettua una loop fusion
+          costringendo a dover far ripartire il passo; in questo modo le tabelle vengono automaticamente aggiornate durante la
+          nuova esecuzione del passo*/
+      }else{
+        errs()<<"\n Nessuna modifica ai loop effettuata in questa funzione \n";
+        return PreservedAnalyses::all();
+      }
+      errs()<<"\n Nessuna modifica ai loop effettuata in questa funzione \n";
         return PreservedAnalyses::all();
     }
 
