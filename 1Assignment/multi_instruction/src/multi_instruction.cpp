@@ -21,77 +21,97 @@ namespace {
     struct MultiInstruction : PassInfoMixin<MultiInstruction> {
         // Main entry point, takes IR unit to run the pass on (&F) and the corresponding pass manager
         PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
+
             bool changed = false;
-            
-            errs() << "Avvio \n";
+
             for (BasicBlock &BB : F) {
-                for (auto it = BB.begin(), end = BB.end(); it != end; ++it) {
-                    if (auto *I = dyn_cast<Instruction>(&*it)) {
-                        auto *add1 = dyn_cast<BinaryOperator>(&*I);
-                        if (!add1)
+                for (auto &I : BB) {     
+                    
+                    SmallVector<Instruction*, 16> usersToDelete;
+
+                    // Si salta se l'istruzione non è un BinaryOperator
+                    if (!isa<BinaryOperator>(&I))
+                        continue;
+                    
+                    // Si salta alla prossima istruzione se non è una delle basiche operazioni aritmetiche
+                    if(
+                        I.getOpcode() != Instruction::Add &&
+                        I.getOpcode() != Instruction::Sub &&
+                        I.getOpcode() != Instruction::Mul &&
+                        I.getOpcode() != Instruction::SDiv &&
+                        I.getOpcode() != Instruction::UDiv
+                    ){
+                        continue;
+                    }
+
+                    outs() << "\n------------------------\nIstruzione: " << I << "\n";
+
+                    // Itero sulla lista degli Users di I
+                    for (auto *U : I.users()){
+
+                        Instruction *user = dyn_cast<Instruction>(&*U);
+
+                        // Si salta se lo user non è un BinaryOperator
+                        if (!isa<BinaryOperator>(&*user))
+                            continue;
+
+                        outs()<<"\nUser: " << *user << " -> ";
+
+                        // Verifica se lo user sia l'operazione inversa dell'istruzione corrente I
+                        bool inverse =
+                        (I.getOpcode() == Instruction::Add &&
+                            user->getOpcode() == Instruction::Sub) ||
+                        (I.getOpcode() == Instruction::Sub &&
+                            user->getOpcode() == Instruction::Add) ||
+                        (I.getOpcode() == Instruction::Mul &&
+                            user->getOpcode() == Instruction::SDiv) ||
+                        (I.getOpcode() == Instruction::SDiv &&
+                            user->getOpcode() == Instruction::Mul) ||
+                        (I.getOpcode() == Instruction::UDiv &&
+                            user->getOpcode() == Instruction::Mul);
+
+                        if(!inverse) {
+                            outs() << "Non è l'operazione inversa\n";
+                            continue;
+                        }
+
+                        // Verifico che il primo operando dello User sia l'istruzione corrente
+                        if(user->getOperand(0) != &I)
                             continue;
                         
-                        if(add1->getOpcode() != Instruction::Add &&
-                            add1->getOpcode() != Instruction::Sub &&
-                            add1->getOpcode() != Instruction::Mul &&
-                            add1->getOpcode() != Instruction::SDiv &&
-                            add1->getOpcode() != Instruction::UDiv){
-                                continue;
-                        }
-                        errs() << "---Istruzione: \n";
-                        add1->print(errs());
-                        errs()<<"\nE' un istruzione che cerchiamo\n";
-                        //cerchiamo gli users
-                        for (auto *U : add1->users()){
-                            //controlla se l'user è un operazione binaria
-                            auto *op = dyn_cast<BinaryOperator>(U);
-                            if(!op)
-                                continue;
-                            errs()<<"user binario\n";
-                            //controlla che siano operazioni inverse tra loro
-                            bool inverse = 
-                            (add1->getOpcode() == Instruction::Add &&
-                            op->getOpcode() == Instruction::Sub)
-                            ||
-                            (add1->getOpcode() == Instruction::Sub &&
-                            op->getOpcode() == Instruction::Add)
-                            ||
-                            (add1->getOpcode() == Instruction::Mul &&
-                            op->getOpcode() == Instruction::SDiv)
-                            ||
-                            (add1->getOpcode() == Instruction::SDiv &&
-                            op->getOpcode() == Instruction::Mul)
-                            ||
-                            (add1->getOpcode() == Instruction::UDiv &&
-                            op->getOpcode() == Instruction::Mul);
-                            if(!inverse)
-                                continue;
-                            //op deve avere come operando add1
-                            if(op->getOperand(0) != add1)
-                                continue;
-                            
-                            //estrae le costanti (se sono presenti)
-                            ConstantInt *C1 = dyn_cast<ConstantInt>(add1->getOperand(1));
-                            ConstantInt *C2 = dyn_cast<ConstantInt>(op->getOperand(1));
+                        // Estrae le costanti (se sono presenti)
+                        ConstantInt *C1 = dyn_cast<ConstantInt>(I.getOperand(1));
+                        ConstantInt *C2 = dyn_cast<ConstantInt>(user->getOperand(1));
 
-                            //controlla che siano costanti
-                            if(!C1)
-                                continue;
-                            if(!C2)
-                                continue;
-                            //controlla che abbiano lo stesso valore
-                            if(C1->getValue() != C2->getValue())
-                                continue;
-                            errs()<<"Inversa trovata\n";
-                            //a questo punto abbiamo trovato una possibilità di ottimizzare il codice
-                            //riprendiamo la nostra prima operazione
-                            Value *b = add1->getOperand(0);
-                            //sostituiamo gli usi di op con add1
-                            op->replaceAllUsesWith(b);
-                            op->eraseFromParent();
-                            errs()<<"OTTIMISAZZIONE AVVENUTA\n";
-                            break;
+                        // Controlla che siano costanti
+                        if(!C1 || !C2) {
+                            outs() << "Manca almeno un secondo operando costante\n";
+                            continue;
                         }
+
+                        // Controlla che abbiano lo stesso valore
+                        if(C1->getValue() != C2->getValue()) {
+                            outs() << "Gli operandi costanti non hanno lo stesso valore\n";
+                            continue;
+                        }
+
+                        outs() << "Inversa trovata\n";
+
+                        // Recupera il primo operando dell'istruzione corrente
+                        Value *b = I.getOperand(0);
+
+                        //sostituiamo gli usi di op con binary_operator
+                        user->replaceAllUsesWith(b);
+                        usersToDelete.push_back(user);
+
+                    }
+
+                    if (!usersToDelete.empty())
+                        changed = true;
+
+                    // Istruzioni User da eliminare
+                    for (auto *user : usersToDelete) {
+                        user->eraseFromParent();
                     }
                 }
             }
@@ -114,7 +134,7 @@ llvm::PassPluginLibraryInfo getMultiInstructionPluginInfo() {
                 PB.registerPipelineParsingCallback(
                     [](StringRef Name, FunctionPassManager &FPM,
                     ArrayRef<PassBuilder::PipelineElement>) {
-                    if (Name == "terzo-passo") {
+                    if (Name == "multi-inst") {
                         FPM.addPass(MultiInstruction());
                         return true;
                     }
