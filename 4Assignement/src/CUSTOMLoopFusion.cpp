@@ -164,6 +164,8 @@ namespace {
             if(!isa<LoadInst>(I2) && !isa<StoreInst>(I2))
               continue;
             auto dep = DI.depends(&I, &I2, true);
+            if(!D)
+              continue;
             Value *Ptr = getLoadStorePointerOperand(&I);
             Value *Ptr2 = getLoadStorePointerOperand(&I2);
 
