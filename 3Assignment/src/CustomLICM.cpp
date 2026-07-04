@@ -11,6 +11,8 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/Analysis/ValueTracking.h"
+
 
 using namespace llvm;
 
@@ -99,6 +101,21 @@ namespace {
     SetVector<Instruction *> invariants; 
     bool isChanged = true;
 
+    /*
+    In SSA, la definizione domina sempre l'uso (no nodi phi). 
+    Di conseguenza, un'istruzione non utilizzerà mai un operando definito fisicamente
+    dopo di essa all'interno dello stesso blocco base.
+
+    Se i blocchi del loop fossero disposti in un ordine topologico perfetto, ovvero dove chi domina viene sempre visitato prima, 
+    allora certamente basterebbe una sola passata.
+
+    Il problema principale è che il metodo loop->getBlocks() di LLVM restituisce i blocchi del ciclo 
+    in un ordine che non è garantito che sia quello di relazione di dominanza topologica. 
+    
+    In presenza di ramificazioni all'interno del blocco di codice (es. if/else), può essere che l'IR
+    memorizzi internamente i vari blocchi non nell'ordine che ci si aspetti.
+    */
+
     while (isChanged) {
       isChanged = false;
 
@@ -142,13 +159,17 @@ namespace {
     // vado a recuperare i blocchi di uscita dal loop
     SmallVector<BasicBlock *, 8> exit_blocks;
     loop->getExitBlocks(exit_blocks);
+
     // itero sulle istruzioni identificate come invarianti 
     for (Instruction *I : invariant_instructions) {
-        if (I->isTerminator() || isa<PHINode>(I) || I->mayHaveSideEffects()) continue; // controllo di integrità base: non sposto terminatori, nodi PHI o istruzioni con side effect
+
+      // isTerminator() ritorna true se I è l'ultima istruzione di un blocco
+      if (I->isTerminator() || isa<PHINode>(I) || I->mayHaveSideEffects()) continue; // controllo di integrità base: non sposto terminatori, nodi PHI o istruzioni con side effect
       
       // condizione di dominanza delle usite del loop
       bool dominates_all_exits = true;
       BasicBlock *inst_bb = I->getParent(); // identifico il blocco in cui si trova l'istruzione
+
       // verifico se il blocco dell'istruzione domina tutti i blocchi di uscita
       for (BasicBlock *exit_bb : exit_blocks) {
         if (!DT.dominates(inst_bb, exit_bb)) {
@@ -159,11 +180,52 @@ namespace {
 
       // Se NON domina tutte le uscite, controllo se posso salvarla
       if (!dominates_all_exits) {
-        // Se è un BinaryOperator (add, mul, sub...), è un'istruzione intrinsecamente "safe"
-        // che non genera eccezioni. Quindi posso sollevarla anche se il blocco non domina le uscite.
-        if (!isa<BinaryOperator>(I)) {
-          continue; // Se non è un BinOp e non domina le uscite, la scarto definitivamente
+
+        /*
+        Nonostante la versione standard della code motion preveda strettamente che l'istruzione domini tutte le uscite,
+        ne esiste una versione estesa che, in caso di fallimento della prima condizione, la code motion è comunque applicabile
+        se la variabile definita dall'istruzione corrente è considerata "morta" al di fuori del loop
+        (sempre a patto che anche le altre due condizioni della code motion siano valide).
+
+        In un contesto non SSA, sarebbe necessario applicare l'algoritmo della Liveness Analysis.
+        In LLVM, invece, basta iterare sugli usi dell'istruzione e verificare che nessun di essi
+        sia contenuto al di fuori del ciclo corrente.
+
+        Oltre alla verifica di inutilizzo della variabile al di fuori del loop, siccome l'istruzione non è stata pensata
+        logicamente per essere eseguita a priori prima del loop, si potrebbe verificare il lancio di errori / eccezioni
+        nel caso in cui l'istruzione venisse effettivamente spostata.
+
+        Esempio:
+        ...
+        scanf("%d", &b);  // input = 0
+        for (...) {
+          if (b != 0)
+            x = a / b
         }
+
+        Se la variabile x non venisse utilizzata dopo il loop e decidessi di spostare l'istruzione nel preheader,
+        c'è il rischio che l'istruzione eseguirebbe una divisione per 0, lanciando quindi un errore.
+
+        Si richiede, dunque, una verifica anticipata prima della liveness per controllare se l'istruzione è safe.
+        */
+
+        if (!isSafeToSpeculativelyExecute(I)) {
+          continue;
+        }
+
+        bool used_outside_loop = false;
+
+        for (User *user : I->users()) {
+          if (Instruction *inst = dyn_cast<Instruction>(user)) {
+            if (!loop->contains(inst)) {
+              used_outside_loop = true;
+              break;
+            }
+          }
+        }
+
+        if (used_outside_loop)
+          continue;
       }
 
       /** 
@@ -201,7 +263,7 @@ namespace {
 
   }
 
-  /** questa istruzione si occuperà di spostare le istruzioni candidate alla code motion.
+  /** Questa funzione si occuperà di spostare le istruzioni candidate alla code motion.
    * @param preheader : puntatore al preheader del loop (dove sposteremo le istruzioni)
    * @param CandidateInstruction : vettore con all'interno le istruzioni candidate alla code motion
    * Non abbiamo bisogno che la funzione restituisca qualcosa, dato che si deve occupare solamente
@@ -292,8 +354,8 @@ namespace {
 
       // Verifica se il CFG contiene almeno un loop
       if (LI.empty()) {
-          errs() << "\nNella funzione non ci sono loop!\n";
-          return PreservedAnalyses::all();
+        errs() << "\nNella funzione non ci sono loop!\n";
+        return PreservedAnalyses::all();
       }
 
       // Determina se è stata applicata almeno una code motion
