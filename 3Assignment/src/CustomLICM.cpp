@@ -31,61 +31,29 @@ namespace {
 
     for (Value *Op : I.operands()) {
 
-      //Inanzitutto controlliamo se l'operando è
-
-      bool isConstant = isa<Constant>(Op); //Controlliamo se l'operando è una costante
-
-      bool isInstruction = false;
-      Instruction *DefInst = nullptr;
-
-      if(!isConstant){ //Se l'istruzione NON è una costante...
-        DefInst = dyn_cast<Instruction>(Op); // L'operando è un'istruzione se il cast non ritorna null
-        isInstruction = (DefInst != nullptr);
-      }
-
-      bool definitionOutsideLoop = false;
-
-      if(isInstruction){
-        if(invariants->count(DefInst)){ //controlla se l'operando è già stato segnato come loop invariant
-          continue;
-        }
-        //altrimenti controlliamo se la sua definizione è fuori dal loop
-        definitionOutsideLoop = !loop->contains(DefInst); //Dato che controlliamo codice nella forma SSA, l'operando potrà avere al massimo una definizione,
-                                                          //Ci basta controllare che essa sia definita fuori dal loop
-      }
-
-      //Controllo 1: costante
-      if(isConstant){
+      // Una costante è invariante
+      if (isa<Constant>(Op)) {
         continue;
       }
 
-      //controllo 2: non è un istruzione
-      if(!isInstruction){
-        return false;
-      }
-
-      //controllo 3: definizione fuori dal loop;
-      if(!definitionOutsideLoop){
-        return false;
-      }
-
-      //Instruction *OpInst = dyn_cast<Instruction>(Op);
-
-      // bool Loop::isLoopInvariant(const Value *V) const {
-      //   if (const Instruction *I = dyn_cast<Instruction>(V))
-      //     return !contains(I);
-      //   return true; // All non-instructions are loop invariant
-      // }
+      // Verifico se l'operando è un'istruzione.
+      // Nel caso non lo fosse (es. Argument), è implicito che sia
+      // definito fuori dal loop
+      if (Instruction *inst = dyn_cast<Instruction>(Op)) {
       
+        // L'istruzione è in funzione di un'istruzione loop invariant
+        if (invariants->count(inst)) {
+          continue;
+        }
 
+        // Grazie alla forma SSA, l'istruzione ha una sola definizione.
+        // Se questa definizione si trova fuori dal loop, l'operando è invariante.
+        if (!loop->contains(inst)) {
+          continue;
+        }
 
-      /* 
-      Un operando NON è invariante se è definito all'interno del ciclo ma 
-      l'istruzione che lo definisce non è già stata segnata come invariante
-      */
-      /*if (!loop->isLoopInvariant(Op) && (!OpInst || !invariants->count(OpInst))) {
         return false;
-      }*/
+      }
     }
     return true;
   }
