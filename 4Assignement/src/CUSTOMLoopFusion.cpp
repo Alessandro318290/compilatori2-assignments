@@ -344,9 +344,9 @@ namespace {
     //Per prima cosa modifichiamo gli usi della induction variable di loop con quelli di prev
     outs()<<"\nModifica degli usi delle IV \n";
 
-    for(BasicBlock *BB : loop->blocks()){ //Volendo potremmo fare semplicemente IVLoop->replaceAllUsesWith(IVPrev),
-      for(Instruction &I : *BB){ // ma meglio sostituire gli usi solo nelle istruzioni dentro a prev,
-        for(Use &U : I.operands()){ //per evitare di compromettere del codice più in avanti
+    for(BasicBlock *BB : loop->blocks()){ 
+      for(Instruction &I : *BB){ 
+        for(Use &U : I.operands()){ 
           if(U.get() == IVLoop)
             U.set(IVPrev);
         }
@@ -405,7 +405,7 @@ namespace {
           predTerminator->setSuccessor(i, loopBodyEntry);
           
           /*
-          Siccome il body di loop non verrà più raggiunto da loopHeader ma da prevheader,
+          Siccome il body di loop non verrà più raggiunto da loopHeader ma da prev,
           è necessario aggiornare questa informazione dentro loop
           */
           for (PHINode &phi : loopBodyEntry->phis()) {
