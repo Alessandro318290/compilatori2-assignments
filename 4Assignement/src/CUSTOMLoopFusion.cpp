@@ -33,12 +33,13 @@ namespace {
     return BI->getParent();
   }
 
-  bool hasUnsafeSideEffectingCall(Loop *L) {
+  bool hasUnsafeSideEffectCall(Loop *L) {
 
     for (BasicBlock *BB : L->blocks()) {
       for (Instruction &I : *BB) {
 
         if (auto *CI = dyn_cast<CallInst>(&I)) {
+
           if (CI->mayHaveSideEffects()) {
             return true;
           }
@@ -122,7 +123,7 @@ namespace {
 
     bool areAdjacent = false;
 
-    BasicBlock *prevExit = prev->getUniqueExitBlock(); // prendiamo il blocco di uscita del loop prev
+    BasicBlock *prevExit = prev->getUniqueExitBlock(); // Si prende il blocco di uscita del loop prev
     if(!prevExit){
       outs()<<"\nBlocco di uscita non trovato \n";
       outs()<<"\nRitorno al livello precedente \n";
@@ -142,10 +143,10 @@ namespace {
       outs() << "nullptr";
     
     outs() << "\nNome Header di loop: ";
-    loop->getHeader()->printAsOperand(outs(), false); //
+    loop->getHeader()->printAsOperand(outs(), false);
     outs() << "\n";
 
-    if(loop->isGuarded()){ //caso guarded
+    if(loop->isGuarded()){ // Caso guarded
 
       outs()<<"\nI loop sono guarded \n";
 
@@ -258,7 +259,7 @@ namespace {
     Si otterrebbero output differenti
     */
 
-    if(hasUnsafeSideEffectingCall(prev) || hasUnsafeSideEffectingCall(loop)){
+    if(hasUnsafeSideEffectCall(prev) || hasUnsafeSideEffectCall(loop)){
       outs()<<"\nPresente una call con side effect: fusione non applicabile";
       outs()<<"\nRitorno al livello precedente \n";
       return changed;
@@ -273,7 +274,7 @@ namespace {
     for(BasicBlock *BB: prev->blocks()){
       for(Instruction &I: *BB){
 
-        // Si è interessati alle sole istruzioni Load/store,
+        // Si è interesati alle sole istruzioni Load/store,
         // poiché sono quelle che possono generare dipendenze
         if(!isa<LoadInst>(I) && !isa<StoreInst>(I))
           continue;
